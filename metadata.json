@@ -1,0 +1,6 @@
+{
+  "name": "MiTorrents",
+  "description": "Clean personal metadata and search interface for TorrentGalaxy-compatible public media pages.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

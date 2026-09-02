@@ -1,25 +1,30 @@
 {
-  "name": "tgx-personal-ui",
+  "name": "mitorrents",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
-  "description": "Clean personal metadata/search interface for TorrentGalaxy-compatible public pages.",
+  "description": "Clean personal metadata and search interface for TorrentGalaxy-compatible public media pages.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "vite",
+    "start": "NODE_ENV=production node server.js",
+    "dev": "node server.js",
     "build": "vite build",
-    "server": "node --watch server.js"
+    "lint": "vite build"
   },
   "dependencies": {
     "cheerio": "^1.0.0",
     "express": "^5.1.0",
+    "jszip": "^3.10.1",
+    "lucide-react": "^1.16.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "tailwindcss": "^4.0.0",
     "vite": "^5.4.1"
   }
 }
