@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   Server
 } from 'lucide-react';
+import Logo from './Logo';
 
 export default function Footer({
   onSelectCategory,
@@ -186,9 +187,7 @@ export default function Footer({
             {/* Column 1: Brand & Overview (Spans 2 columns on lg) */}
             <div className="lg:col-span-2 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white font-black text-lg">
-                  M
-                </div>
+                <Logo className="w-9 h-9" />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-base text-slate-900 dark:text-slate-100 tracking-tight">MiTorrents</span>

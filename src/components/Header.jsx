@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Radio, Bookmark, LayoutGrid, List, Sparkles, X, History, ExternalLink, Activity, Rss, Tv, Sliders, Sun, Moon } from 'lucide-react';
+import Logo from './Logo';
 
 export default function Header({
   searchQuery,
@@ -42,10 +43,8 @@ export default function Header({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo & Brand */}
-          <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={() => { setActiveTab('latest'); setSearchQuery(''); }}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white font-black text-xl tracking-wider">
-              M
-            </div>
+          <div className="flex items-center gap-3 shrink-0 cursor-pointer group" onClick={() => { setActiveTab('latest'); setSearchQuery(''); }}>
+            <Logo className="w-10 h-10 transition group-hover:scale-105" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg text-slate-900 dark:text-slate-100 tracking-tight">MiTorrents</span>
@@ -55,7 +54,13 @@ export default function Header({
               </div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-300 transition" onClick={(e) => { e.stopPropagation(); onOpenMirrors(); }}>
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
-                <span>{serverStatus?.source ? new URL(serverStatus.source).hostname : 'Mirrors Active'}</span>
+                <span>{(() => {
+                  try {
+                    return serverStatus?.source ? new URL(serverStatus.source).hostname : 'torrentgalaxy.one';
+                  } catch {
+                    return serverStatus?.source || 'Mirrors Active';
+                  }
+                })()}</span>
               </div>
             </div>
           </div>
