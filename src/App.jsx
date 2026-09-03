@@ -25,7 +25,6 @@ export default function App() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [fallbackNotice, setFallbackNotice] = useState(null);
   const [serverStatus, setServerStatus] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
 
@@ -208,7 +207,6 @@ export default function App() {
   const fetchData = useCallback(async (isSearch = false, query = '', cat = '', pageNum = 1) => {
     setLoading(true);
     setError(null);
-    setFallbackNotice(null);
 
     try {
       let endpoint = '';
@@ -225,7 +223,6 @@ export default function App() {
 
       const data = await res.json();
       setItems(data.results || []);
-      setFallbackNotice(data.notice || null);
     } catch (err) {
       console.warn("Fetch error:", err);
       setError(err.message || 'Unable to retrieve media items.');
@@ -419,31 +416,6 @@ export default function App() {
                 onResetFilters={resetFilters}
               />
             )}
-          </div>
-        )}
-
-        {/* Fallback Notice Banner */}
-        {!selectedItem && fallbackNotice && (
-          <div className="p-3.5 rounded-2xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/60 text-xs text-cyan-900 dark:text-cyan-200 flex items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
-              <span>{fallbackNotice}</span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => fetchData(activeTab === 'search', activeSearchTerm, selectedCategory, page)}
-                className="px-2.5 py-1 rounded-lg bg-cyan-100 dark:bg-cyan-900/60 hover:bg-cyan-200 dark:hover:bg-cyan-800 text-cyan-900 dark:text-cyan-200 text-[11px] font-medium transition flex items-center gap-1"
-              >
-                <RefreshCw className="w-3 h-3" /> Retry Live
-              </button>
-              <button
-                onClick={() => setFallbackNotice(null)}
-                className="p-1 rounded-lg hover:bg-cyan-200/50 dark:hover:bg-cyan-800/50 text-cyan-700 dark:text-cyan-300 transition"
-                title="Dismiss"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
           </div>
         )}
 

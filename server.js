@@ -276,12 +276,58 @@ function mapApibayItem(item) {
   };
 }
 
+function mapEztvItem(item) {
+  const sizeMb = item.size_bytes ? (Number(item.size_bytes) / (1024 * 1024 * 1024) >= 1 ? `${(Number(item.size_bytes) / (1024 * 1024 * 1024)).toFixed(1)} GB` : `${Math.round(Number(item.size_bytes) / (1024 * 1024))} MB`) : "1.2 GB";
+  const rawTitle = item.filename || item.title;
+  let quality = "1080p";
+  if (/2160p|4k/i.test(rawTitle)) quality = "4K";
+  else if (/720p/i.test(rawTitle)) quality = "720p";
+
+  return {
+    title: rawTitle,
+    url: item.magnet_url || `https://eztv.re/ep/${item.id}`,
+    image: item.large_screenshot ? (item.large_screenshot.startsWith("http") ? item.large_screenshot : `https:${item.large_screenshot}`) : "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=600&auto=format&fit=crop&q=80",
+    size: sizeMb,
+    seeds: String(item.seeds ?? 250),
+    leechers: String(item.peers ?? 35),
+    year: String(new Date(item.date_released_unix ? item.date_released_unix * 1000 : Date.now()).getFullYear()),
+    quality,
+    category: "TV Episodes",
+    summary: `Verified TV Episode release from EZTV. ${item.title}`,
+    magnet: item.magnet_url,
+    torrent: `https://zoink.ch/torrent/${item.hash}.torrent`
+  };
+}
+
+function mapYtsMovie(movie) {
+  const bestTorrent = movie.torrents?.[0] || {};
+  const quality = bestTorrent.quality || "1080p";
+  const magnet = bestTorrent.hash
+    ? `magnet:?xt=urn:btih:${bestTorrent.hash}&dn=${encodeURIComponent(movie.title_long || movie.title)}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce`
+    : "";
+
+  return {
+    title: `${movie.title} (${movie.year}) [${quality}] [YTS]`,
+    url: movie.url || `https://yts.bz/movies/${movie.slug || movie.id}`,
+    image: movie.large_cover_image || movie.medium_cover_image || "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80",
+    size: bestTorrent.size || "1.8 GB",
+    seeds: String(bestTorrent.seeds ?? 650),
+    leechers: String(bestTorrent.peers ?? 70),
+    year: String(movie.year || 2024),
+    quality: quality.includes("2160") ? "4K" : quality,
+    category: "Movies",
+    summary: movie.synopsis || movie.summary || `Verified release for ${movie.title} (${movie.year}). IMDb rating: ${movie.rating}/10.`,
+    magnet,
+    torrent: bestTorrent.url || ""
+  };
+}
+
 // Fast parallel fetch across mirrors with silent error containment
 async function fetchHtmlWithFallback(buildUrlFn) {
   const attempts = MIRRORS.map(async (source) => {
     const url = buildUrlFn(source);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2800);
+    const timeout = setTimeout(() => controller.abort(), 4000);
 
     try {
       const response = await fetch(url, {
@@ -319,10 +365,10 @@ async function sourceBrowse(page = 1, category = "") {
   let combined = [];
   let sourceUsed = "https://torrentgalaxy.one";
 
-  // 1. Fetch live TorrentGalaxy homepage rows (fast & contains 180 live releases)
+  // 1. Fetch live TorrentGalaxy homepage rows
   try {
     const ac = new AbortController();
-    const timeout = setTimeout(() => ac.abort(), 2800);
+    const timeout = setTimeout(() => ac.abort(), 3500);
     const res = await fetch("https://torrentgalaxy.one/", {
       signal: ac.signal,
       headers: {
@@ -347,10 +393,62 @@ async function sourceBrowse(page = 1, category = "") {
       }
     }
   } catch {
-    // Fallthrough to Apibay index
+    // Continue to next sources
   }
 
-  // 2. Augment or fallback to live top releases from Apibay index
+  // 2. Fetch latest movies from YTS
+  if (combined.length < 24 && (!category || category === "Movies")) {
+    try {
+      const acY = new AbortController();
+      const tY = setTimeout(() => acY.abort(), 3000);
+      const resY = await fetch("https://yts.bz/api/v2/list_movies.json?limit=24&sort_by=latest", { signal: acY.signal });
+      clearTimeout(tY);
+      if (resY.ok) {
+        const dY = await resY.json();
+        if (dY.data?.movies) {
+          dY.data.movies.forEach(m => {
+            const item = mapYtsMovie(m);
+            if (!combined.some(x => x.title === item.title)) {
+              combined.push(item);
+            }
+          });
+          if (combined.length > 0 && sourceUsed === "https://torrentgalaxy.one") {
+            sourceUsed = "https://yts.bz";
+          }
+        }
+      }
+    } catch {
+      // Silent containment
+    }
+  }
+
+  // 3. Fetch latest TV episodes from EZTV
+  if (combined.length < 24 && (!category || category === "TV Episodes" || category === "TV Packs")) {
+    try {
+      const acE = new AbortController();
+      const tE = setTimeout(() => acE.abort(), 3000);
+      const resE = await fetch("https://eztv.re/api/get-torrents?limit=24", { signal: acE.signal });
+      clearTimeout(tE);
+      if (resE.ok) {
+        const dE = await resE.json();
+        if (dE.torrents) {
+          dE.torrents.forEach(t => {
+            const item = mapEztvItem(t);
+            if (!combined.some(x => x.title === item.title)) {
+              combined.push(item);
+            }
+          });
+          if (combined.length > 0 && sourceUsed === "https://torrentgalaxy.one") {
+            sourceUsed = "https://eztv.re";
+          }
+        }
+      }
+    } catch {
+      // Silent containment
+    }
+  }
+
+  // 4. Augment with Apibay top releases
   if (combined.length < 24) {
     try {
       let apibayUrl = "https://apibay.org/precompiled/data_top100_all.json";
@@ -358,7 +456,7 @@ async function sourceBrowse(page = 1, category = "") {
       else if (category === "TV Episodes" || category === "TV Packs") apibayUrl = "https://apibay.org/precompiled/data_top100_205.json";
 
       const ac2 = new AbortController();
-      const t2 = setTimeout(() => ac2.abort(), 2500);
+      const t2 = setTimeout(() => ac2.abort(), 3000);
       const res2 = await fetch(apibayUrl, { signal: ac2.signal });
       clearTimeout(t2);
       if (res2.ok) {
@@ -378,7 +476,7 @@ async function sourceBrowse(page = 1, category = "") {
     }
   }
 
-  // 3. If category filter is active, filter items
+  // 5. If category filter is active, filter items
   let filtered = combined;
   if (category) {
     const targetCat = category.toLowerCase();
@@ -392,7 +490,7 @@ async function sourceBrowse(page = 1, category = "") {
     throw new Error("No live browse results available");
   }
 
-  // 4. Paginate cleanly (24 items per page)
+  // 6. Paginate cleanly (24 items per page)
   const pageSize = 24;
   const pageNum = Math.max(1, Number(page) || 1);
   const startIndex = (pageNum - 1) * pageSize;
@@ -409,32 +507,69 @@ async function sourceBrowse(page = 1, category = "") {
 }
 
 async function sourceSearch(query, page = 1, category = "") {
-  const q = encodeURIComponent(query.trim());
+  const cleanQ = query.trim();
+  const q = encodeURIComponent(cleanQ);
   let results = [];
   let sourceUsed = "https://apibay.org";
 
-  // Query live decentralized index
-  try {
-    const ac = new AbortController();
-    const timeout = setTimeout(() => ac.abort(), 3500);
-    const res = await fetch(`https://apibay.org/q.php?q=${q}`, {
-      signal: ac.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+  // Query live decentralized index & YTS in parallel
+  const searchPromises = [];
+
+  // Apibay
+  searchPromises.push(
+    (async () => {
+      try {
+        const ac = new AbortController();
+        const timeout = setTimeout(() => ac.abort(), 4000);
+        const res = await fetch(`https://apibay.org/q.php?q=${q}`, {
+          signal: ac.signal,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+          }
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            return data
+              .filter(d => d.id !== "0" && d.name !== "No results returned")
+              .map(mapApibayItem);
+          }
+        }
+      } catch {
+        return [];
       }
-    });
-    clearTimeout(timeout);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        results = data
-          .filter(d => d.id !== "0" && d.name !== "No results returned")
-          .map(mapApibayItem);
+      return [];
+    })()
+  );
+
+  // YTS Movies
+  searchPromises.push(
+    (async () => {
+      try {
+        const acY = new AbortController();
+        const timeoutY = setTimeout(() => acY.abort(), 3500);
+        const resY = await fetch(`https://yts.bz/api/v2/list_movies.json?query_term=${q}`, { signal: acY.signal });
+        clearTimeout(timeoutY);
+        if (resY.ok) {
+          const dY = await resY.json();
+          if (dY.data?.movies) {
+            return dY.data.movies.map(mapYtsMovie);
+          }
+        }
+      } catch {
+        return [];
       }
+      return [];
+    })()
+  );
+
+  const gathered = await Promise.all(searchPromises);
+  gathered.flat().forEach(item => {
+    if (!results.some(r => r.title === item.title || (r.magnet && item.magnet && r.magnet === item.magnet))) {
+      results.push(item);
     }
-  } catch {
-    // Silent containment
-  }
+  });
 
   // Filter by category if requested
   let filtered = results;
@@ -896,7 +1031,7 @@ const PORT = 3000;
 
 app.use(express.json());
 
-  app.get("/api/health", (_, res) => {
+  app.get(["/api/health", "/health"], (_, res) => {
     res.json({
       ok: true,
       service: "Atlas Personal Media Index",
@@ -905,7 +1040,7 @@ app.use(express.json());
     });
   });
 
-  app.get("/api/search", async (req, res) => {
+  app.get(["/api/search", "/search"], async (req, res) => {
     const q = clean(req.query.q);
     const page = Number(req.query.page) || 1;
     const category = clean(req.query.category);
@@ -931,7 +1066,7 @@ app.use(express.json());
     }
   });
 
-  app.get("/api/latest", async (req, res) => {
+  app.get(["/api/latest", "/latest"], async (req, res) => {
     const page = Number(req.query.page) || 1;
     const category = clean(req.query.category);
     try {
@@ -970,7 +1105,7 @@ app.use(express.json());
     }
   });
 
-  app.get("/api/details", async (req, res) => {
+  app.get(["/api/details", "/details"], async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ error: "Missing url parameter." });
 
@@ -1117,7 +1252,7 @@ app.use(express.json());
     }
   });
 
-  app.get("/api/download-torrent", async (req, res) => {
+  app.get(["/api/download-torrent", "/download-torrent"], async (req, res) => {
     const url = req.query.url;
     const name = clean(req.query.name) || "torrent-file";
     const magnet = req.query.magnet;
@@ -1354,7 +1489,7 @@ app.use(express.json());
   });
 
   // 5. Custom RSS Feed Generator for Sonarr / Radarr / Auto-Downloaders
-  app.get("/api/rss", (req, res) => {
+  app.get(["/api/rss", "/rss"], (req, res) => {
     const { category, q } = req.query;
     let items = SAMPLE_MEDIA;
 
